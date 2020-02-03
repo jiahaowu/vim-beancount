@@ -111,7 +111,8 @@ function! beancount#complete(findstart, base) abort
         return beancount#complete_basic(b:beancount_links, l:rest, '^')
     elseif l:first ==# '"'
         call beancount#load_payees()
-        return beancount#complete_basic(b:beancount_payees, l:rest, '"')
+        call beancount#load_narrations()
+        return beancount#complete_basic(b:beancount_payees + b:beancount_narrations, l:rest, '"')
     else
         call beancount#load_accounts()
         return beancount#complete_account(a:base)
@@ -119,8 +120,8 @@ function! beancount#complete(findstart, base) abort
 endfunction
 
 function! beancount#get_root() abort
-    if exists('b:beancount_root')
-        return b:beancount_root
+    if exists('g:beancount_root')
+        return g:beancount_root
     endif
     return expand('%')
 endfunction
@@ -138,6 +139,7 @@ currencies = set()
 events = set()
 links = set()
 payees = set()
+narrations = set()
 tags = set()
 
 entries, errors, options_map = loader.load_file(vim.eval('l:root'))
@@ -151,6 +153,8 @@ for index, entry in enumerate(entries):
     elif isinstance(entry, data.Event):
         events.add(entry.type)
     elif isinstance(entry, data.Transaction):
+        if entry.narration:
+            narrations.add(entry.narration)
         if entry.tags:
             tags.update(entry.tags)
         if entry.links:
@@ -163,6 +167,7 @@ vim.command('let b:beancount_currencies = [{}]'.format(','.join(repr(x) for x in
 vim.command('let b:beancount_events = [{}]'.format(','.join(repr(x) for x in sorted(events))))
 vim.command('let b:beancount_links = [{}]'.format(','.join(repr(x) for x in sorted(links))))
 vim.command('let b:beancount_payees = [{}]'.format(','.join(repr(x) for x in sorted(payees))))
+vim.command('let b:beancount_narrations = [{}]'.format(','.join(repr(x) for x in sorted(narrations))))
 vim.command('let b:beancount_tags = [{}]'.format(','.join(repr(x) for x in sorted(tags))))
 vim.command('let b:beancount_loaded = v:true'.format(','.join(repr(x) for x in sorted(tags))))
 EOF
@@ -201,6 +206,13 @@ function! beancount#load_payees() abort
     if !s:using_python3 && !exists('b:beancount_payees')
         let l:root = beancount#get_root()
         let b:beancount_payees = beancount#query_single(l:root, 'select distinct payee;')
+    endif
+endfunction
+
+function! beancount#load_narrations() abort
+    if !s:using_python3 && !exists('b:beancount_narrations')
+        let l:root = beancount#get_root()
+        let b:beancount_narrations = beancount#query_single(l:root, 'select distinct narration;')
     endif
 endfunction
 
